@@ -1,0 +1,159 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: packcove-config
+data:
+  packcove.yaml: |
+    server:
+      listen: "0.0.0.0:8080"
+      public_base_url: "https://packcove.example.internal"
+    storage:
+      data_dir: "/var/lib/packcove/data"
+    cache:
+      metadata_ttl: "5m"
+      mutable_artifact_ttl: "5m"
+      immutable_artifact_ttl: "never"
+      stale_if_error: false
+    upstream:
+      connect_timeout: "10s"
+      request_timeout: "5m"
+      max_redirects: 5
+    repositories:
+      - name: maven-central
+        type: maven
+        upstream: "https://repo.maven.apache.org/maven2/"
+        allowed_download_hosts:
+          - "repo.maven.apache.org"
+      - name: npm
+        type: npm
+        upstream: "https://registry.npmjs.org/"
+        allowed_download_hosts:
+          - "registry.npmjs.org"
+      - name: pypi
+        type: pypi
+        upstream: "https://pypi.org/simple/"
+        allowed_download_hosts:
+          - "pypi.org"
+          - "files.pythonhosted.org"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: packcove-data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: packcove
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: packcove
+  template:
+    metadata:
+      labels:
+        app: packcove
+    spec:
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+        - name: packcove
+          image: packcove:0.1.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - -config
+            - /etc/packcove/packcove.yaml
+          ports:
+            - name: http
+              containerPort: 8080
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          startupProbe:
+            httpGet:
+              path: /_packcove/health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 24
+          readinessProbe:
+            httpGet:
+              path: /_packcove/health
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /_packcove/health
+              port: http
+            periodSeconds: 20
+          volumeMounts:
+            - name: config
+              mountPath: /etc/packcove/packcove.yaml
+              subPath: packcove.yaml
+              readOnly: true
+            - name: data
+              mountPath: /var/lib/packcove/data
+      volumes:
+        - name: config
+          configMap:
+            name: packcove-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: packcove-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: packcove
+spec:
+  selector:
+    app: packcove
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: packcove
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - packcove.example.internal
+      secretName: packcove-tls
+  rules:
+    - host: packcove.example.internal
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: packcove
+                port:
+                  number: 8080
