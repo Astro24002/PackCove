@@ -1,11 +1,14 @@
 {{- if and .Values.persistence.enabled (not .Values.persistence.existingClaim) }}
+{{- $annotations := mergeOverwrite (deepCopy .Values.commonAnnotations) .Values.persistence.annotations }}
+{{- $storageClass := default .Values.persistence.storageClass .Values.global.storageClass }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: {{ include "packcove.dataClaimName" . }}
+  namespace: {{ include "packcove.namespace" . | quote }}
   labels:
     {{- include "packcove.labels" . | nindent 4 }}
-  {{- with .Values.persistence.annotations }}
+  {{- with $annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}
@@ -15,7 +18,7 @@ spec:
   resources:
     requests:
       storage: {{ .Values.persistence.size | quote }}
-  {{- with .Values.persistence.storageClassName }}
-  storageClassName: {{ . | quote }}
+  {{- if and $storageClass (ne $storageClass "-") }}
+  storageClassName: {{ $storageClass | quote }}
   {{- end }}
 {{- end }}

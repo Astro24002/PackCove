@@ -1,7 +1,13 @@
 PackCove is installed as a single replica with persistent storage.
 
 Set config.server.public_base_url to the URL package clients will use.
-To expose the service, enable ingress and configure its host and TLS values.
+{{- if .Values.ingress.enabled }}
+Ingress host: {{ .Values.ingress.hostname }}
+{{- if .Values.ingress.tls }}
+TLS Secret: {{ default (printf "%s-tls" (include "packcove.fullname" .)) .Values.ingress.existingSecret }}
+{{- end }}
+{{- else }}
+Use kubectl -n {{ include "packcove.namespace" . }} port-forward svc/{{ include "packcove.fullname" . }} {{ .Values.service.ports.http }}:{{ .Values.service.ports.http }}
+{{- end }}
 
-If the GHCR package is private, configure imagePullSecrets with a secret that
-can read ghcr.io/astro24002/packcove.
+The image defaults to {{ include "packcove.image" . }}.

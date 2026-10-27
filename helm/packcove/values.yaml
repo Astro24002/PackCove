@@ -1,55 +1,149 @@
-replicaCount: 1
+## @section Global image parameters
+## These settings can override the image registry, pull secrets, and storage class.
+global:
+  ## @param global.imageRegistry Registry used for all chart images.
+  imageRegistry: ""
+  ## @param global.imagePullSecrets Registry secret names available to the Pod.
+  imagePullSecrets: []
+  ## @param global.storageClass Default StorageClass for persistent volumes.
+  storageClass: ""
 
-image:
-  repository: ghcr.io/astro24002/packcove
-  tag: latest
-  pullPolicy: Always
-
-imagePullSecrets: []
+## @section Common parameters
+## @param nameOverride String to partially override the chart name.
 nameOverride: ""
+## @param fullnameOverride String to fully override the release name.
 fullnameOverride: ""
+## @param namespaceOverride Namespace used for chart resources.
+namespaceOverride: ""
+## @param commonLabels Labels added to all resources.
+commonLabels: {}
+## @param commonAnnotations Annotations added to chart resources.
+commonAnnotations: {}
 
+## @section PackCove deployment parameters
+## @param replicaCount Must remain 1 while PackCove uses SQLite.
+replicaCount: 1
+## @param revisionHistoryLimit Number of old ReplicaSets retained for rollback.
+revisionHistoryLimit: 10
+updateStrategy:
+  ## PackCove needs Recreate to avoid overlapping SQLite writers.
+  type: Recreate
+
+## @section Image parameters
+image:
+  ## @param image.registry Container image registry.
+  registry: ghcr.io
+  ## @param image.repository Container image repository.
+  repository: astro24002/packcove
+  ## @param image.tag Image tag; defaults to Chart.appVersion.
+  tag: ""
+  ## @param image.digest Optional immutable sha256 digest; overrides the tag.
+  digest: ""
+  ## @param image.pullPolicy Container image pull policy.
+  pullPolicy: IfNotPresent
+  ## @param image.pullSecrets Secret names used to pull the image.
+  pullSecrets: []
+
+## @section Pod parameters
+## @param automountServiceAccountToken Mount the Kubernetes API token in the Pod.
+automountServiceAccountToken: false
+## @param serviceAccountName Existing ServiceAccount to use; empty uses the namespace default.
+serviceAccountName: ""
+## @param hostAliases Additional entries for the Pod /etc/hosts file.
+hostAliases: []
+## @param command Override the image entrypoint.
+command: []
+## @param args Override the image command arguments.
+args: []
+## @param extraEnvVars Additional container environment variables.
+extraEnvVars: []
+## @param extraEnvVarsConfigMap Existing ConfigMap loaded as environment variables.
+extraEnvVarsConfigMap: ""
+## @param extraEnvVarsSecret Existing Secret loaded as environment variables.
+extraEnvVarsSecret: ""
+
+## @param podAnnotations Additional annotations for the PackCove Pod.
 podAnnotations: {}
+## @param podLabels Additional labels for the PackCove Pod.
 podLabels: {}
-
+## @section Pod and container security
 podSecurityContext:
+  ## @param podSecurityContext.enabled Enable the Pod security context.
+  enabled: true
   runAsNonRoot: true
   runAsUser: 65532
   runAsGroup: 65532
   fsGroup: 65532
   fsGroupChangePolicy: OnRootMismatch
-
+  seccompProfile:
+    type: RuntimeDefault
 containerSecurityContext:
+  ## @param containerSecurityContext.enabled Enable the PackCove container security context.
+  enabled: true
   allowPrivilegeEscalation: false
   readOnlyRootFilesystem: true
   capabilities:
     drop:
       - ALL
+  seccompProfile:
+    type: RuntimeDefault
 
+## @section Container ports
+## If this port changes, set config.server.listen to the same port.
+containerPorts:
+  http: 8080
+
+## @section Service parameters
 service:
+  ## @param service.type Kubernetes Service type.
   type: ClusterIP
-  port: 8080
-
-ingress:
-  enabled: false
-  className: nginx
+  ports:
+    ## @param service.ports.http Service port for HTTP traffic.
+    http: 8080
+  nodePorts:
+    ## Set when service.type is NodePort or LoadBalancer.
+    http: ""
+  clusterIP: ""
+  loadBalancerIP: ""
+  loadBalancerSourceRanges: []
+  externalTrafficPolicy: Cluster
   annotations: {}
-  hosts:
-    - host: packcove.example.internal
-      paths:
-        - path: /
-          pathType: Prefix
-  tls: []
+  sessionAffinity: None
 
+## @section Ingress parameters
+ingress:
+  ## @param ingress.enabled Create an Ingress resource.
+  enabled: false
+  ingressClassName: nginx
+  hostname: packcove.example.internal
+  path: /
+  pathType: Prefix
+  annotations: {}
+  tls: false
+  ## Existing TLS Secret; defaults to <release-fullname>-tls when TLS is enabled.
+  existingSecret: ""
+  extraHosts: []
+  extraPaths: []
+  extraTls: []
+  extraRules: []
+
+## @section Persistence parameters
 persistence:
+  ## @param persistence.enabled Create and mount a PVC for the SQLite database and cached artifacts.
   enabled: true
   existingClaim: ""
-  storageClassName: ""
+  mountPath: /var/lib/packcove/data
+  storageClass: ""
   accessModes:
     - ReadWriteOnce
   size: 10Gi
   annotations: {}
 
+## @section Configuration parameters
+configMap:
+  annotations: {}
+
+## PackCove application configuration rendered into packcove.yaml in a ConfigMap.
 config:
   server:
     listen: "0.0.0.0:8080"
@@ -83,6 +177,7 @@ config:
         - pypi.org
         - files.pythonhosted.org
 
+## @section Resource parameters
 resources:
   requests:
     cpu: 100m
@@ -91,11 +186,45 @@ resources:
     cpu: "1"
     memory: 512Mi
 
-probes:
-  startup:
-    periodSeconds: 5
-    failureThreshold: 24
-  readiness:
-    periodSeconds: 10
-  liveness:
-    periodSeconds: 20
+## @section Probes
+startupProbe:
+  enabled: true
+  path: /_packcove/health
+  initialDelaySeconds: 0
+  periodSeconds: 5
+  timeoutSeconds: 1
+  failureThreshold: 24
+  successThreshold: 1
+readinessProbe:
+  enabled: true
+  path: /_packcove/health
+  initialDelaySeconds: 0
+  periodSeconds: 10
+  timeoutSeconds: 1
+  failureThreshold: 3
+  successThreshold: 1
+livenessProbe:
+  enabled: true
+  path: /_packcove/health
+  initialDelaySeconds: 0
+  periodSeconds: 20
+  timeoutSeconds: 1
+  failureThreshold: 3
+  successThreshold: 1
+
+## @section Scheduling parameters
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+schedulerName: ""
+terminationGracePeriodSeconds: 30
+dnsPolicy: ""
+dnsConfig: {}
+
+## @section Additional containers and volumes
+extraVolumes: []
+extraVolumeMounts: []
+initContainers: []
+sidecars: []

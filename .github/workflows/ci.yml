@@ -50,10 +50,23 @@ jobs:
           helm template packcove helm/packcove --namespace packcove > /dev/null
           helm template packcove helm/packcove --namespace packcove \
             --set ingress.enabled=true \
-            --set 'ingress.tls[0].hosts[0]=packcove.example.internal' \
-            --set 'ingress.tls[0].secretName=packcove-tls' > /dev/null
+            --set ingress.hostname=packcove.example.internal \
+            --set ingress.tls=true \
+            --set ingress.existingSecret=packcove-tls > /dev/null
+          helm template packcove helm/packcove --namespace packcove \
+            --set persistence.existingClaim=packcove-data-existing \
+            --set global.storageClass=fast > /dev/null
+          helm template packcove helm/packcove --namespace packcove \
+            --set global.imageRegistry=registry.example.internal \
+            --set image.repository=team/packcove \
+            --set image.digest=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+            --set 'image.pullSecrets[0]=ghcr-pull-secret' > /dev/null
           if helm template packcove helm/packcove --set replicaCount=2 > /dev/null 2>&1; then
             echo "expected chart to reject replicaCount=2"
+            exit 1
+          fi
+          if helm template packcove helm/packcove --set updateStrategy.type=RollingUpdate > /dev/null 2>&1; then
+            echo "expected chart to reject RollingUpdate"
             exit 1
           fi
 
@@ -81,6 +94,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Read PackCove app version
+        id: chart
+        run: |
+          version="$(awk -F '"' '/^appVersion:/ {print $2}' helm/packcove/Chart.yaml)"
+          test -n "$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
       - name: Extract Docker metadata
         id: meta
         uses: docker/metadata-action@v6
@@ -88,6 +108,7 @@ jobs:
           images: ${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=latest
+            type=raw,value=${{ steps.chart.outputs.version }}
             type=sha,prefix=sha-
 
       - name: Build and publish application image

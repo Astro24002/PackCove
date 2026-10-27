@@ -2,5 +2,22 @@ apiVersion: v2
 name: packcove
 description: Single-instance HTTP cache proxy for Maven, npm, and PyPI
 type: application
-version: 0.1.0
+version: 0.2.0
 appVersion: "0.1.0"
+kubeVersion: ">=1.19.0-0"
+home: https://github.com/Astro24002/PackCove
+sources:
+  - https://github.com/Astro24002/PackCove
+keywords:
+  - packcove
+  - artifact-cache
+  - maven
+  - npm
+  - pypi
+maintainers:
+  - name: Astro24002
+    url: https://github.com/Astro24002
+annotations:
+  images: |
+    - name: packcove
+      image: ghcr.io/astro24002/packcove:0.1.0

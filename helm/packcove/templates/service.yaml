@@ -1,15 +1,44 @@
+{{- $annotations := mergeOverwrite (deepCopy .Values.commonAnnotations) .Values.service.annotations }}
+{{- if and .Values.service.nodePorts.http (not (has .Values.service.type (list "NodePort" "LoadBalancer"))) }}
+{{- fail "service.nodePorts.http requires service.type=NodePort or LoadBalancer" }}
+{{- end }}
+{{- if and (eq .Values.service.externalTrafficPolicy "Local") (not (has .Values.service.type (list "NodePort" "LoadBalancer"))) }}
+{{- fail "service.externalTrafficPolicy=Local requires service.type=NodePort or LoadBalancer" }}
+{{- end }}
 apiVersion: v1
 kind: Service
 metadata:
   name: {{ include "packcove.fullname" . }}
+  namespace: {{ include "packcove.namespace" . | quote }}
   labels:
     {{- include "packcove.labels" . | nindent 4 }}
+  {{- with $annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
   type: {{ .Values.service.type }}
+  {{- with .Values.service.clusterIP }}
+  clusterIP: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.service.loadBalancerIP }}
+  loadBalancerIP: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.service.loadBalancerSourceRanges }}
+  loadBalancerSourceRanges:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- if ne .Values.service.externalTrafficPolicy "Cluster" }}
+  externalTrafficPolicy: {{ .Values.service.externalTrafficPolicy }}
+  {{- end }}
+  sessionAffinity: {{ .Values.service.sessionAffinity }}
   selector:
     {{- include "packcove.selectorLabels" . | nindent 4 }}
   ports:
     - name: http
-      port: {{ .Values.service.port }}
+      port: {{ .Values.service.ports.http }}
       targetPort: http
       protocol: TCP
+      {{- with .Values.service.nodePorts.http }}
+      nodePort: {{ . }}
+      {{- end }}

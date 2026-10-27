@@ -1,78 +1,179 @@
 {{- if ne (int .Values.replicaCount) 1 }}
-{{- fail "PackCove v0.1 requires replicaCount=1 because its storage is single-writer" }}
+{{- fail "PackCove v0.1 requires replicaCount=1 because its SQLite data directory has one active writer" }}
 {{- end }}
+{{- if ne .Values.updateStrategy.type "Recreate" }}
+{{- fail "PackCove requires updateStrategy.type=Recreate to avoid overlapping SQLite writers" }}
+{{- end }}
+{{- if not (hasSuffix (printf ":%v" .Values.containerPorts.http) .Values.config.server.listen) }}
+{{- fail "containerPorts.http must match the port in config.server.listen" }}
+{{- end }}
+{{- $annotations := mergeOverwrite (deepCopy .Values.commonAnnotations) .Values.podAnnotations }}
+{{- $_ := set $annotations "checksum/config" (include (print $.Template.BasePath "/configmap.yaml") . | sha256sum) }}
+{{- $podLabels := mergeOverwrite (deepCopy .Values.commonLabels) .Values.podLabels (include "packcove.selectorLabels" . | fromYaml) }}
+{{- $imagePullSecrets := concat (.Values.global.imagePullSecrets | default list) (.Values.image.pullSecrets | default list) | uniq }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "packcove.fullname" . }}
+  namespace: {{ include "packcove.namespace" . | quote }}
   labels:
     {{- include "packcove.labels" . | nindent 4 }}
+  {{- with .Values.commonAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
-  replicas: 1
+  replicas: {{ .Values.replicaCount }}
+  revisionHistoryLimit: {{ .Values.revisionHistoryLimit }}
   strategy:
-    type: Recreate
+    type: {{ .Values.updateStrategy.type }}
   selector:
     matchLabels:
       {{- include "packcove.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
-        {{- with .Values.podAnnotations }}
-        {{- toYaml . | nindent 8 }}
-        {{- end }}
+        {{- toYaml $annotations | nindent 8 }}
       labels:
-        {{- with .Values.podLabels }}
-        {{- toYaml . | nindent 8 }}
-        {{- end }}
-        {{- include "packcove.selectorLabels" . | nindent 8 }}
+        {{- toYaml $podLabels | nindent 8 }}
     spec:
-      automountServiceAccountToken: false
-      terminationGracePeriodSeconds: 30
+      automountServiceAccountToken: {{ .Values.automountServiceAccountToken }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- if .Values.serviceAccountName }}
+      serviceAccountName: {{ .Values.serviceAccountName | quote }}
+      {{- end }}
+      {{- if .Values.podSecurityContext.enabled }}
       securityContext:
-        {{- toYaml .Values.podSecurityContext | nindent 8 }}
-      {{- with .Values.imagePullSecrets }}
+        {{- omit .Values.podSecurityContext "enabled" | toYaml | nindent 8 }}
+      {{- end }}
+      {{- if $imagePullSecrets }}
       imagePullSecrets:
+        {{- range $imagePullSecrets }}
+        - name: {{ . | quote }}
+        {{- end }}
+      {{- end }}
+      {{- with .Values.hostAliases }}
+      hostAliases:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.dnsPolicy }}
+      dnsPolicy: {{ . | quote }}
+      {{- end }}
+      {{- with .Values.dnsConfig }}
+      dnsConfig:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+      {{- with .Values.schedulerName }}
+      schedulerName: {{ . | quote }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.initContainers }}
+      initContainers:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       containers:
         - name: {{ include "packcove.name" . }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          image: {{ include "packcove.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy | quote }}
+          {{- with .Values.command }}
+          command:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.args }}
           args:
-            - -config
-            - /etc/packcove/packcove.yaml
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           ports:
             - name: http
-              containerPort: 8080
+              containerPort: {{ .Values.containerPorts.http }}
               protocol: TCP
+          {{- if .Values.containerSecurityContext.enabled }}
           securityContext:
-            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+            {{- omit .Values.containerSecurityContext "enabled" | toYaml | nindent 12 }}
+          {{- end }}
+          {{- with .Values.extraEnvVars }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if or .Values.extraEnvVarsConfigMap .Values.extraEnvVarsSecret }}
+          envFrom:
+            {{- with .Values.extraEnvVarsConfigMap }}
+            - configMapRef:
+                name: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.extraEnvVarsSecret }}
+            - secretRef:
+                name: {{ . | quote }}
+            {{- end }}
+          {{- end }}
+          {{- with .Values.resources }}
           resources:
-            {{- toYaml .Values.resources | nindent 12 }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if .Values.startupProbe.enabled }}
           startupProbe:
             httpGet:
-              path: /_packcove/health
+              path: {{ .Values.startupProbe.path | quote }}
               port: http
-            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
-            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+            initialDelaySeconds: {{ .Values.startupProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.startupProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.startupProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.startupProbe.failureThreshold }}
+            successThreshold: {{ .Values.startupProbe.successThreshold }}
+          {{- end }}
+          {{- if .Values.readinessProbe.enabled }}
           readinessProbe:
             httpGet:
-              path: /_packcove/health
+              path: {{ .Values.readinessProbe.path | quote }}
               port: http
-            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+            successThreshold: {{ .Values.readinessProbe.successThreshold }}
+          {{- end }}
+          {{- if .Values.livenessProbe.enabled }}
           livenessProbe:
             httpGet:
-              path: /_packcove/health
+              path: {{ .Values.livenessProbe.path | quote }}
               port: http
-            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+            successThreshold: {{ .Values.livenessProbe.successThreshold }}
+          {{- end }}
           volumeMounts:
             - name: config
               mountPath: /etc/packcove/packcove.yaml
               subPath: packcove.yaml
               readOnly: true
             - name: data
-              mountPath: /var/lib/packcove/data
+              mountPath: {{ .Values.persistence.mountPath | quote }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+        {{- with .Values.sidecars }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       volumes:
         - name: config
           configMap:
@@ -84,3 +185,6 @@ spec:
           {{- else }}
           emptyDir: {}
           {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}

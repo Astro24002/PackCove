@@ -39,9 +39,9 @@ Install the chart from `helm/packcove`. Set `config.server.public_base_url` and 
 helm upgrade --install packcove ./helm/packcove --namespace packcove --create-namespace -f my-values.yaml
 ```
 
-For a private GHCR package, set `imagePullSecrets` in the values file to a Kubernetes secret with `ghcr.io` read access.
+For a private GHCR package, set `image.pullSecrets` or `global.imagePullSecrets` in the values file to a Kubernetes secret with `ghcr.io` read access.
 
-Set `server.public_base_url` to the stable HTTPS URL reachable by package clients before deploying behind an ingress or reverse proxy. Do not rely on the request `Host` header for rewritten download URLs. The sample URL is only for local use. TLS termination is expected at the deployment edge.
+Set `config.server.public_base_url` to the stable HTTPS URL reachable by package clients before deploying behind an ingress or reverse proxy. Do not rely on the request `Host` header for rewritten download URLs. The sample URL is only for local use. TLS termination is expected at the deployment edge.
 
 ## Configuration
 

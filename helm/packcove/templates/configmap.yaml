@@ -1,9 +1,19 @@
+{{- $annotations := mergeOverwrite (deepCopy .Values.commonAnnotations) .Values.configMap.annotations }}
+{{- $config := deepCopy .Values.config }}
+{{- $storage := default dict $config.storage }}
+{{- $_ := set $storage "data_dir" .Values.persistence.mountPath }}
+{{- $_ := set $config "storage" $storage }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: {{ include "packcove.configName" . }}
+  namespace: {{ include "packcove.namespace" . | quote }}
   labels:
     {{- include "packcove.labels" . | nindent 4 }}
+  {{- with $annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 data:
   packcove.yaml: |
-{{ toYaml .Values.config | indent 4 }}
+{{ toYaml $config | indent 4 }}
