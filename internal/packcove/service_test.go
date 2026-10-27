@@ -153,12 +153,14 @@ func TestValidateConfigDefaultsAndErrors(t *testing.T) {
 }
 
 func TestSampleConfigLoads(t *testing.T) {
-	cfg, err := LoadConfig("../../packcove.yaml")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(cfg.Repositories) != 3 {
-		t.Fatalf("sample config contains %d repositories, want 3", len(cfg.Repositories))
+	for _, path := range []string{"../../packcove.yaml", "../../docker/packcove.yaml"} {
+		cfg, err := LoadConfig(path)
+		if err != nil {
+			t.Fatalf("load %s: %v", path, err)
+		}
+		if len(cfg.Repositories) != 3 {
+			t.Fatalf("%s contains %d repositories, want 3", path, len(cfg.Repositories))
+		}
 	}
 }
 

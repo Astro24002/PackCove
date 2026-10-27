@@ -1,0 +1,101 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/astro24002/packcove
+  tag: latest
+  pullPolicy: Always
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+  fsGroupChangePolicy: OnRootMismatch
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+service:
+  type: ClusterIP
+  port: 8080
+
+ingress:
+  enabled: false
+  className: nginx
+  annotations: {}
+  hosts:
+    - host: packcove.example.internal
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+persistence:
+  enabled: true
+  existingClaim: ""
+  storageClassName: ""
+  accessModes:
+    - ReadWriteOnce
+  size: 10Gi
+  annotations: {}
+
+config:
+  server:
+    listen: "0.0.0.0:8080"
+    public_base_url: "https://packcove.example.internal"
+  storage:
+    data_dir: "/var/lib/packcove/data"
+  cache:
+    metadata_ttl: "5m"
+    mutable_artifact_ttl: "5m"
+    immutable_artifact_ttl: "never"
+    stale_if_error: false
+  upstream:
+    connect_timeout: "10s"
+    request_timeout: "5m"
+    max_redirects: 5
+  repositories:
+    - name: maven-central
+      type: maven
+      upstream: "https://repo.maven.apache.org/maven2/"
+      allowed_download_hosts:
+        - repo.maven.apache.org
+    - name: npm
+      type: npm
+      upstream: "https://registry.npmjs.org/"
+      allowed_download_hosts:
+        - registry.npmjs.org
+    - name: pypi
+      type: pypi
+      upstream: "https://pypi.org/simple/"
+      allowed_download_hosts:
+        - pypi.org
+        - files.pythonhosted.org
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: "1"
+    memory: 512Mi
+
+probes:
+  startup:
+    periodSeconds: 5
+    failureThreshold: 24
+  readiness:
+    periodSeconds: 10
+  liveness:
+    periodSeconds: 20

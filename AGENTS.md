@@ -2,7 +2,7 @@
 
 ## Project Structure
 
-PackCove is a Go 1.27 service. The executable starts in `cmd/packcove`; configuration, SQLite-backed blob storage, protocol rewriting, HTTP routes, metrics, and proxying live in `internal/packcove`. Unit and local-upstream integration tests are beside those packages. `packcove.yaml` is the local configuration, `deploy/kubernetes/packcove.yaml` is a single-replica deployment, and the Dockerfile builds a static image.
+PackCove is a Go 1.27 service. The executable starts in `cmd/packcove`; configuration, SQLite-backed blob storage, protocol rewriting, HTTP routes, metrics, and proxying live in `internal/packcove`. Unit and local-upstream integration tests are beside those packages. `packcove.yaml` is the local configuration, `docker/` contains the Compose service and its config, `helm/packcove/` is the Helm chart, and `deploy/kubernetes/packcove.yaml` is the standalone single-replica manifest. The root Dockerfile builds the static image.
 
 ## Build, Test, and Run
 
@@ -10,6 +10,8 @@ PackCove is a Go 1.27 service. The executable starts in `cmd/packcove`; configur
 - `go run ./cmd/packcove -config packcove.yaml` starts the service.
 - `make build` writes `bin/packcove`; `docker build -t packcove:0.1.0 .` builds the container.
 - `make test-clients` runs real npm, pip, and Maven client installs. It requires npm, Docker, network access, and may download client images.
+- `docker compose -f docker/compose.yaml config` validates the Compose configuration without starting the service.
+- `helm lint --strict helm/packcove` checks the chart; `helm template packcove helm/packcove` renders its Kubernetes resources.
 - `go vet ./...` checks common Go mistakes.
 
 ## Style and Tests
@@ -18,7 +20,7 @@ Run `gofmt` on changed Go files. Keep packages lowercase, exported identifiers d
 
 ## Changes and Reviews
 
-This workspace has no Git history yet, so no established commit format can be inferred. Use short imperative subjects such as `feat: add npm tarball mapping` or `fix: reject incomplete upstream blobs`. Pull requests should describe behavior and configuration impact, list commands run, and call out protocol limits or deployment changes. Include logs or sample requests when changing HTTP behavior.
+Use short imperative Conventional Commit subjects such as `feat: add npm tarball mapping`, `fix: reject incomplete upstream blobs`, or `ci: validate Helm and Compose`. Pull requests should describe behavior and configuration impact, list commands run, and call out protocol limits or deployment changes. Include logs or sample requests when changing HTTP behavior.
 
 ## Security and Operations
 

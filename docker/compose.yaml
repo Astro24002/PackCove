@@ -1,0 +1,19 @@
+services:
+  packcove:
+    image: ghcr.io/astro24002/packcove:latest
+    pull_policy: always
+    restart: unless-stopped
+    ports:
+      - "${PACKCOVE_PORT:-8080}:8080"
+    volumes:
+      - packcove-data:/var/lib/packcove/data
+      - ./packcove.yaml:/etc/packcove/packcove.yaml:ro
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    init: true
+
+volumes:
+  packcove-data:

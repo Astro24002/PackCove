@@ -20,6 +20,27 @@ docker build -t packcove:0.1.0 .
 docker run --rm -p 8080:8080 -v packcove-data:/var/lib/packcove/data packcove:0.1.0
 ```
 
+### Docker Compose
+
+The Compose example uses the GHCR image and a named volume for SQLite and cached blobs. If the package is private, log in to GHCR first with an account or token that has package read access.
+
+```sh
+docker compose -f docker/compose.yaml up -d
+docker compose -f docker/compose.yaml down
+```
+
+Edit `docker/packcove.yaml` before starting to set the public URL clients will use. PackCove embeds SQLite, so Compose does not start a separate database service.
+
+### Helm
+
+Install the chart from `helm/packcove`. Set `config.server.public_base_url` and the ingress host in a values file; keep `replicaCount` at `1` and persistent storage enabled.
+
+```sh
+helm upgrade --install packcove ./helm/packcove --namespace packcove --create-namespace -f my-values.yaml
+```
+
+For a private GHCR package, set `imagePullSecrets` in the values file to a Kubernetes secret with `ghcr.io` read access.
+
 Set `server.public_base_url` to the stable HTTPS URL reachable by package clients before deploying behind an ingress or reverse proxy. Do not rely on the request `Host` header for rewritten download URLs. The sample URL is only for local use. TLS termination is expected at the deployment edge.
 
 ## Configuration
@@ -64,7 +85,7 @@ The sample single-replica Kubernetes deployment is in `deploy/kubernetes/packcov
 
 `go test ./...` runs hermetic config, storage, HTTP, protocol, cache, revalidation, range, concurrency, and failure tests using local upstream fixtures. Real package-manager checks are available with `make test-clients`; npm is run locally, and pip/Maven use Docker images. That target needs Docker and network access to fetch client images and the test Maven Central mirror. It verifies isolated npm and pip clients and two isolated Maven local repositories against a shared PackCove cache.
 
-GitHub Actions checks formatting, runs tests with the race detector, and runs `go vet` for pushes and pull requests targeting `main`.
+GitHub Actions checks formatting, runs tests with the race detector, runs `go vet`, validates the Compose configuration, and lints/renders the Helm chart for pushes and pull requests targeting `main`.
 
 After verification succeeds on a push to `main`, CI publishes the image to `ghcr.io/astro24002/packcove` with `latest` and commit-specific `sha-*` tags. The workflow authenticates with the repository `GITHUB_TOKEN`; configure the package visibility in GitHub Packages if it should be publicly pullable.
 

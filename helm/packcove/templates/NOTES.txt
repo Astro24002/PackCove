@@ -1,0 +1,7 @@
+PackCove is installed as a single replica with persistent storage.
+
+Set config.server.public_base_url to the URL package clients will use.
+To expose the service, enable ingress and configure its host and TLS values.
+
+If the GHCR package is private, configure imagePullSecrets with a secret that
+can read ghcr.io/astro24002/packcove.

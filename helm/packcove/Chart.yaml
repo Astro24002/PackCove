@@ -1,0 +1,6 @@
+apiVersion: v2
+name: packcove
+description: Single-instance HTTP cache proxy for Maven, npm, and PyPI
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
