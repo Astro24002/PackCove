@@ -64,6 +64,8 @@ The sample single-replica Kubernetes deployment is in `deploy/kubernetes/packcov
 
 `go test ./...` runs hermetic config, storage, HTTP, protocol, cache, revalidation, range, concurrency, and failure tests using local upstream fixtures. Real package-manager checks are available with `make test-clients`; npm is run locally, and pip/Maven use Docker images. That target needs Docker and network access to fetch client images and the test Maven Central mirror. It verifies isolated npm and pip clients and two isolated Maven local repositories against a shared PackCove cache.
 
-GitHub Actions checks formatting, runs tests with the race detector, runs `go vet`, and builds the application Docker image for pushes and pull requests targeting `main`. CI does not publish the image to a registry.
+GitHub Actions checks formatting, runs tests with the race detector, and runs `go vet` for pushes and pull requests targeting `main`.
+
+After verification succeeds on a push to `main`, CI publishes the image to `ghcr.io/astro24002/packcove` with `latest` and commit-specific `sha-*` tags. The workflow authenticates with the repository `GITHUB_TOKEN`; configure the package visibility in GitHub Packages if it should be publicly pullable.
 
 The v0.1 scope is public read-only repositories, one process, no authentication, no uploads, no web UI, and no automatic cache cleanup. A cold request still depends on its upstream. The cache does not cover compilation time, `node_modules`, virtual environments, OCI images, or downloads that bypass the configured registry. Orphaned blobs from a crash between file publication and index commit are left on disk; automatic reclamation is not implemented.
